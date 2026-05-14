@@ -5,6 +5,9 @@ import { db } from "@/database/drizzle"
 import { usersTable } from "@/database/schema"
 import { eq } from "drizzle-orm"
 import { hash } from "bcryptjs" // ✅ FIXED
+import { ratelimit } from "../ratelimit"
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 
 // TYPES (make sure you have this)
 type AuthCredentials = {
@@ -18,6 +21,18 @@ type AuthCredentials = {
 // ✅ SIGN UP
 export const signUp = async (params: AuthCredentials) => {
     const { fullName, email, password, universityId, universityCard } = params
+
+
+    const ip =
+        (await headers()).get("x-forwarded-for")?.split(",")[0] ||
+        "127.0.0.1"
+
+    const { success } = await ratelimit.limit(ip)
+
+    if (!success) {
+        redirect("/too-fast")
+    }
+
 
     try {
         // check existing user
@@ -62,7 +77,15 @@ export const signInwithCredentials = async (
     params: Pick<AuthCredentials, "email" | "password">
 ) => {
     const { email, password } = params
+    const ip =
+        (await headers()).get("x-forwarded-for")?.split(",")[0] ||
+        "127.0.0.1"
 
+    const { success } = await ratelimit.limit(ip)
+
+    if (!success) {
+        redirect("/too-fast")
+    }
     try {
         const result = await signIn("credentials", {
             email,
